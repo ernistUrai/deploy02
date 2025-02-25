@@ -1,56 +1,41 @@
-version: '3.9'
+version: '3'
 
 services:
-  django:
+
+  web:
     build: .
-    container_name: OchotnikProject
+    command: >
+      bash -c "./manage.py collectstatic --noinput && ./manage.py makemigrations && ./manage.py migrate && gunicorn -b 0.0.0.0:8000 ochotnik.wsgi:application"
+    volumes:
+      - .:/app
+      - static_volume:/app/static
+      - media_volume:/app/media
     ports:
       - "8000:8000"
     depends_on:
-      - ochotnik_postgres_db
-    env_file:
-      - .env
-    environment:
-      DEBUG: ${DEBUG}
-      DB_NAME: ${DB_NAME}
-      DB_USER: ${DB_USER}
-      DB_PASSWORD: ${DB_PASSWORD}
-      DB_HOST: ${DB_HOST}
-      DB_PORT: ${DB_PORT}
-    command: >
-      sh -c "./wait-for-it.sh ochotnik_postgres_db:5432 --timeout=0 --
-              python manage.py makemigrations --noinput &&
-              python manage.py migrate --noinput &&
-              python manage.py collectstatic --noinput &&
-              gunicorn config.wsgi:application --bind 0.0.0.0:8000"
-    volumes:
-      - .:/code
-      - ./staticfiles:/app/staticfiles  
-    networks:
-      - ochotnik_network
+      - db
 
-
-  study_platform_postgres_db:
-    image: postgres:16.6-alpine
-    container_name: ochotnik_postgres_db
+  db:
+    image: postgres:latest
     restart: always
-    env_file:
-      - .env
     environment:
-      POSTGRES_DB: ${DB_NAME}
-      POSTGRES_USER: ${DB_USER}
-      POSTGRES_PASSWORD: ${DB_PASSWORD}
-    ports:
-      - "5433:5433"
+      POSTGRES_DB: postgres
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
     volumes:
       - postgres_data:/var/lib/postgresql/data
-    networks:
-      - ochotnik_network
 
-networks:
-  study_platform_network:
-    driver: bridge
+  nginx:
+    build: ./nginx
+    ports:
+      - "80:80"
+    volumes:
+      - static_volume:/app/static
+      - media_volume:/app/media
+    depends_on:
+      - web
 
 volumes:
   postgres_data:
-    driver: local
+  static_volume:
+  media_volume:
